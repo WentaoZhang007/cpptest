@@ -1,0 +1,94 @@
+#ifndef JZ_LOCK_FREE_LIST_HPP
+#define JZ_LOCK_FREE_LIST_HPP
+
+#include <list>
+
+/*
+*   说明：基于CAS封装的无锁List。
+*/
+template <typename T>
+class JzLockfreeList
+{
+private:
+	std::list<T> list;
+
+private:
+	int mutex;
+	int lock;
+	int unlock;
+public:
+	JzLockfreeList() :mutex(0), lock(0), unlock(1) {};
+	~JzLockfreeList() {};
+
+	void Lock()
+	{
+		while (!__sync_bool_compare_and_swap(&mutex, lock, 1))
+		{
+			usleep(100);
+		}
+	}
+
+	void Unlock()
+	{
+		__sync_bool_compare_and_swap(&mutex, unlock, 0);
+	}
+
+	void Push(T data)
+	{
+		Lock();
+		list.push_back(data);
+		Unlock();
+	}
+
+	T Front()
+	{
+		Lock();
+		T data = list.front();
+		Unlock();
+
+		return data;
+	}
+
+	void PopFront()
+	{
+		Lock();
+		list.pop_front();
+		Unlock();
+	}
+
+	bool IsEmpty()
+	{
+		Lock();
+		if (list.empty())
+		{
+			Unlock();
+			return true;
+		}
+		else
+		{
+			Unlock();
+			return false;
+		}
+	}
+
+	bool Find(T data)
+	{
+		typename std::list<T>::iterator it;
+
+		Lock();
+		for (it = list.begin(); it != list.end(); ++it)
+		{
+			if (*it == data)
+			{
+				Unlock();
+				return true;
+			}
+		}
+
+		Unlock();
+		return false;
+	}
+};
+
+#endif
+
